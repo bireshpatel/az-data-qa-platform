@@ -15,8 +15,3 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
-
-License
-Specify a license if desired.
-
-Feel free to update this README with project-specific instructions.
