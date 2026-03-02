@@ -5,7 +5,9 @@ terraform {
   }
 }
 
-provider "azurerm" { features {} }
+provider "azurerm" {
+  features {}
+}
 
 # 1. Resource Group & Network
 resource "azurerm_resource_group" "rg" {
@@ -42,8 +44,11 @@ resource "databricks_cluster" "qa_cluster" {
   spark_version           = "13.3.x-scala2.12"
   node_type_id            = "Standard_DS3_v2"
   autotermination_minutes = 20
-  spark_conf = { "spark.databricks.cluster.profile" : "singleNode", "spark.master" : "local[*]" }
-  azure_attributes { availability = "SPOT_WITH_FALLBACK_AZURE", first_on_demand = 1 }
+  spark_conf = { "spark.databricks.cluster.profile" = "singleNode", "spark.master" = "local[*]" }
+  azure_attributes {
+    availability   = "SPOT_WITH_FALLBACK_AZURE"
+    first_on_demand = 1
+  }
 }
 
 # 4. Upload your Data QA Code from the /tests folder
