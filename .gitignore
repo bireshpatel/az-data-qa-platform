@@ -4,3 +4,21 @@
 .terraform.lock.hcl
 __pycache__/
 .env
+
+# Python
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.cache/
+
+# IDEs
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
