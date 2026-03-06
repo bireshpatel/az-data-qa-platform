@@ -1,0 +1,10 @@
+# Copy to backend.hcl and fill in values (do not commit backend.hcl with real names).
+# Use: terraform init -backend-config=backend.hcl
+
+resource_group_name  = "rg-terraform-state"
+storage_account_name = "stterraformstate"
+container_name       = "tfstate"
+key                  = "data-qa-platform.tfstate"
+
+# When using GitHub Actions with OIDC, add:
+# use_oidc = true

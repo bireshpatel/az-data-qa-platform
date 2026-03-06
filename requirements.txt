@@ -1,0 +1,9 @@
+# Data QA platform — local / CI
+# On Databricks, install via cluster init script or %pip in notebook
+
+# Great Expectations (Unity Catalog–compatible: use Spark DataFrame from spark.read.table())
+# GX 0.18.x works with Databricks Runtime 12+; avoid GX 2.x (gx package) for this pattern.
+great_expectations>=0.18.0,<0.19
+
+# Optional for local runs
+pyspark>=3.4.0

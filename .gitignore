@@ -2,6 +2,8 @@
 *.tfstate*
 *.tfvars
 .terraform.lock.hcl
+backend_config.hcl
+backend.hcl
 __pycache__/
 .env
 

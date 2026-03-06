@@ -1,16 +1,68 @@
-name: 'Platform Sync'
-on: [push]
+# ---------------------------------------------------------------------------
+# Deploy Enterprise Data QA platform — Terraform apply via OIDC
+# Uses Azure workload identity federation (no client secret); Azure RM backend for state
+# ---------------------------------------------------------------------------
+# Required GitHub secrets (OIDC): AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# Optional (backend): TF_STATE_RG, TF_STATE_SA, TF_STATE_CONTAINER, TF_STATE_KEY
+# Configure federated credential in Azure AD for this repo (see README)
+# ---------------------------------------------------------------------------
+
+name: 'Deploy Data QA Platform'
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  ARM_USE_OIDC: true
+  TF_VAR_environment: dev
 
 jobs:
   deploy:
+    name: Terraform Apply
     runs-on: ubuntu-latest
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    permissions:
+      contents: read
+      id-token: write   # Required for OIDC with Azure
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - run: terraform -chdir=terraform init
-      - run: terraform -chdir=terraform apply -auto-approve
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+          terraform_wrapper: false
+
+      - name: Terraform Init (Azure RM Backend)
+        working-directory: terraform
+        run: |
+          if [ -z "${{ secrets.TF_STATE_SA }}" ]; then
+            echo "TF_STATE_SA (and TF_STATE_RG) must be set for remote state. See README."
+            exit 1
+          fi
+          cat > backend_config.hcl << EOF
+          resource_group_name  = "${{ secrets.TF_STATE_RG }}"
+          storage_account_name = "${{ secrets.TF_STATE_SA }}"
+          container_name       = "${{ secrets.TF_STATE_CONTAINER || 'tfstate' }}"
+          key                  = "${{ secrets.TF_STATE_KEY || 'data-qa-platform.tfstate' }}"
+          use_oidc             = true
+          EOF
+          terraform init -backend-config=backend_config.hcl
+
+      - name: Terraform Validate
+        working-directory: terraform
+        run: terraform validate
+
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve -input=false
