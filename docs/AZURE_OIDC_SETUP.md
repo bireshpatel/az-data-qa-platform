@@ -138,6 +138,23 @@ In the repo: **Settings** → **Secrets and variables** → **Actions** → **Ne
 
 Save, then re-run the workflow.
 
+### 3. Fix "ContainerNotFound" (container does not exist)
+
+If Terraform init fails with **StatusCode=404 ... ContainerNotFound**, the storage account exists but the **container** does not. Create it:
+
+**Azure Portal:** Storage account → **Containers** → **+ Container** → name: `tfstate` (or whatever you set in `TF_STATE_CONTAINER`).
+
+**Azure CLI** (use your actual resource group and storage account name from your secrets):
+
+```bash
+az storage container create \
+  --name tfstate \
+  --account-name "<your-TF_STATE_SA>" \
+  --resource-group "<your-TF_STATE_RG>"
+```
+
+Then re-run the workflow.
+
 ---
 
 ## Step 7: Re-run the workflow
