@@ -46,8 +46,12 @@ jobs:
       - name: Terraform Init (Azure RM Backend)
         working-directory: terraform
         run: |
-          if [ -z "${{ secrets.TF_STATE_SA }}" ]; then
-            echo "TF_STATE_SA (and TF_STATE_RG) must be set for remote state. See README."
+          MISSING=""
+          [ -z "${{ secrets.TF_STATE_RG }}" ] && MISSING="${MISSING} TF_STATE_RG"
+          [ -z "${{ secrets.TF_STATE_SA }}" ] && MISSING="${MISSING} TF_STATE_SA"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Required GitHub secrets for remote state are not set:$MISSING"
+            echo "Add them in Settings → Secrets and variables → Actions. See README or docs/AZURE_OIDC_SETUP.md."
             exit 1
           fi
           cat > backend_config.hcl << EOF

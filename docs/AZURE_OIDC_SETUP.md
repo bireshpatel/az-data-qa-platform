@@ -86,9 +86,57 @@ In the repo: **Settings** → **Secrets and variables** → **Actions**:
 | `AZURE_TENANT_ID` | Directory (tenant) ID |
 | `AZURE_SUBSCRIPTION_ID` | Subscription ID where you deploy |
 
-Optional for Terraform remote state:
+**Required for Terraform remote state** (CI will fail without them):
 
-- `TF_STATE_RG`, `TF_STATE_SA`, `TF_STATE_CONTAINER`, `TF_STATE_KEY`
+- `TF_STATE_RG` – Resource group containing the state storage account
+- `TF_STATE_SA` – Storage account name for Terraform state
+- `TF_STATE_CONTAINER` – (optional) Container name; default `tfstate`
+- `TF_STATE_KEY` – (optional) State file name; default `data-qa-platform.tfstate`
+
+---
+
+## Terraform state storage (fix “TF_STATE_SA and TF_STATE_RG must be set”)
+
+If the workflow fails with **TF_STATE_SA (and TF_STATE_RG) must be set**, the backend needs an Azure Storage account and the matching GitHub secrets.
+
+### 1. Create the state storage (once)
+
+**Azure Portal:**
+
+1. Create a **resource group** for state (e.g. `rg-terraform-state`).
+2. Create a **storage account** in that group:
+   - Name: globally unique (e.g. `stdataqatfstate<random>`).
+   - Performance: Standard, LRS.
+   - Enable **Hierarchical namespace** only if you want (not required for blob state).
+3. In the storage account, create a **container** named `tfstate` (or another name; set `TF_STATE_CONTAINER` to match).
+
+**Azure CLI:**
+
+```bash
+RG="rg-terraform-state"
+LOCATION="eastus"
+SA_NAME="stdataqatfstate$(openssl rand -hex 4)"   # must be globally unique
+
+az group create --name "$RG" --location "$LOCATION"
+az storage account create --resource-group "$RG" --name "$SA_NAME" --sku Standard_LRS
+az storage container create --name tfstate --account-name "$SA_NAME"
+
+echo "TF_STATE_RG=$RG"
+echo "TF_STATE_SA=$SA_NAME"
+```
+
+### 2. Add GitHub secrets
+
+In the repo: **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
+
+| Name            | Value                                      |
+|-----------------|--------------------------------------------|
+| `TF_STATE_RG`   | Resource group name (e.g. `rg-terraform-state`) |
+| `TF_STATE_SA`   | Storage account name from step 1           |
+| `TF_STATE_CONTAINER` | (optional) e.g. `tfstate`             |
+| `TF_STATE_KEY`  | (optional) e.g. `data-qa-platform.tfstate` |
+
+Save, then re-run the workflow.
 
 ---
 
@@ -106,6 +154,7 @@ Optional for Terraform remote state:
 - [ ] Issuer: `https://token.actions.githubusercontent.com`, Audience: `api://AzureADTokenExchange`.
 - [ ] Service principal has **Contributor** (or needed role) on the subscription/resource group.
 - [ ] GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` are set and correct.
+- [ ] For remote state: `TF_STATE_RG` and `TF_STATE_SA` are set; storage account and `tfstate` container exist.
 
 ---
 
