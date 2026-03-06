@@ -54,7 +54,7 @@ terraform apply
 
 `deploy.yml` runs `terraform apply` on push to `main` (and on `workflow_dispatch`).
 
-- **Auth**: **OIDC** with Azure (no client secret). Configure an Azure AD App Registration with a **federated credential**:
+- **Auth**: **OIDC** with Azure (no client secret). Configure an Azure AD App Registration with a **federated credential** (see [docs/AZURE_OIDC_SETUP.md](docs/AZURE_OIDC_SETUP.md) for step-by-step setup and troubleshooting):
   - Issuer: `https://token.actions.githubusercontent.com`
   - Audience: `api://AzureADTokenExchange`
   - Subject: `repo:<org>/<repo>:ref:refs/heads/main` (or environment).
