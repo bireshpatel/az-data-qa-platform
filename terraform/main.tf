@@ -105,6 +105,23 @@ resource "azurerm_databricks_workspace" "ws" {
   }
 }
 
+# Look up workspace after create so identity attributes are populated (can be empty in resource on first apply)
+data "azurerm_databricks_workspace" "ws_lookup" {
+  name                = azurerm_databricks_workspace.ws.name
+  resource_group_name = azurerm_databricks_workspace.ws.resource_group_name
+}
+
+# Prefer storage_account_identity for Key Vault/ADLS; fall back to managed_disk_identity (VNet-injected can expose either).
+# Data source is used because the resource can return empty identity on first create; resource values used as fallback.
+locals {
+  workspace_principal_id = coalesce(
+    try(data.azurerm_databricks_workspace.ws_lookup.storage_account_identity[0].principal_id, null),
+    try(data.azurerm_databricks_workspace.ws_lookup.managed_disk_identity[0].principal_id, null),
+    try(azurerm_databricks_workspace.ws.storage_account_identity[0].principal_id, null),
+    try(azurerm_databricks_workspace.ws.managed_disk_identity[0].principal_id, null)
+  )
+}
+
 # ---------------------------------------------------------------------------
 # 3. Azure Key Vault (secret management for Databricks)
 # ---------------------------------------------------------------------------
@@ -123,7 +140,7 @@ resource "azurerm_key_vault" "kv" {
   # Allow Databricks workspace managed identity to read secrets
   access_policy {
     tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = azurerm_databricks_workspace.ws.storage_account_identity[0].principal_id
+    object_id = local.workspace_principal_id
     secret_permissions = ["Get", "List"]
   }
 
@@ -163,7 +180,7 @@ resource "azurerm_storage_data_lake_gen2_filesystem" "data_docs" {
 resource "azurerm_role_assignment" "databricks_storage" {
   scope                = azurerm_storage_account.adls.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_databricks_workspace.ws.storage_account_identity[0].principal_id
+  principal_id         = local.workspace_principal_id
 }
 
 # ---------------------------------------------------------------------------
@@ -186,7 +203,8 @@ resource "databricks_secret_scope" "kv" {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Single-Node Databricks cluster (Spot, 20-min autotermination)
+# 6. Databricks cluster (minimal 1-worker Spot, 20-min autotermination)
+# Single-node (NO_ISOLATION) is often disabled by workspace policy; use 1 worker instead.
 # ---------------------------------------------------------------------------
 
 resource "databricks_cluster" "qa_cluster" {
@@ -195,17 +213,12 @@ resource "databricks_cluster" "qa_cluster" {
   node_type_id            = "Standard_DS3_v2"
   autotermination_minutes = 20
 
-  spark_conf = {
-    "spark.databricks.cluster.profile" = "singleNode"
-    "spark.master"                     = "local[*, 4]"
-  }
-
   azure_attributes {
     availability    = "SPOT_WITH_FALLBACK_AZURE"
     first_on_demand = 1
   }
 
-  num_workers = 0 # Single-node
+  num_workers = 1
 }
 
 # ---------------------------------------------------------------------------
