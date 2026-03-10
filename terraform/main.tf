@@ -79,11 +79,6 @@ resource "azurerm_databricks_workspace" "ws" {
     public_subnet_name  = azurerm_subnet.public.name
     private_subnet_name = azurerm_subnet.private.name
   }
-
-  # Required for Key Vault-backed secret scope (workspace identity reads secrets)
-  identity {
-    type = "SystemAssigned"
-  }
 }
 
 # ---------------------------------------------------------------------------
@@ -104,7 +99,7 @@ resource "azurerm_key_vault" "kv" {
   # Allow Databricks workspace managed identity to read secrets
   access_policy {
     tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = azurerm_databricks_workspace.ws.identity[0].principal_id
+    object_id = azurerm_databricks_workspace.ws.storage_account_identity[0].principal_id
     secret_permissions = ["Get", "List"]
   }
 
@@ -143,7 +138,7 @@ resource "azurerm_storage_data_lake_gen2_filesystem" "data_docs" {
 resource "azurerm_role_assignment" "databricks_storage" {
   scope                = azurerm_storage_account.adls.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_databricks_workspace.ws.identity[0].principal_id
+  principal_id         = azurerm_databricks_workspace.ws.storage_account_identity[0].principal_id
 }
 
 # ---------------------------------------------------------------------------
