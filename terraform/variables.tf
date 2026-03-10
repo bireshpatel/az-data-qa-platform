@@ -26,6 +26,12 @@ variable "project_name" {
   default     = "data-qa"
 }
 
+variable "databricks_spark_version" {
+  description = "Databricks runtime LTS version for the QA cluster (avoids querying workspace at plan time in CI)"
+  type        = string
+  default     = "14.3.x-scala2.12"
+}
+
 # ---------------------------------------------------------------------------
 # Backend / state (override via -var or TF_VAR_)
 # ---------------------------------------------------------------------------

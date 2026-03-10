@@ -115,7 +115,8 @@ resource "azurerm_key_vault" "kv" {
 # ---------------------------------------------------------------------------
 
 resource "azurerm_storage_account" "adls" {
-  name                     = "st${var.project_name}${substr(md5(azurerm_resource_group.rg.name), 0, 8)}"
+  # Storage account names: lowercase letters and numbers only, 3-24 chars (no hyphens)
+  name                     = substr("st${replace(var.project_name, "-", "")}${substr(md5(azurerm_resource_group.rg.name), 0, 8)}", 0, 24)
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
@@ -166,7 +167,7 @@ resource "databricks_secret_scope" "kv" {
 
 resource "databricks_cluster" "qa_cluster" {
   cluster_name            = "Data-QA-Engine"
-  spark_version           = data.databricks_spark_version.latest_lts.id
+  spark_version           = var.databricks_spark_version
   node_type_id            = "Standard_DS3_v2"
   autotermination_minutes = 20
 
@@ -181,10 +182,6 @@ resource "databricks_cluster" "qa_cluster" {
   }
 
   num_workers = 0 # Single-node
-}
-
-data "databricks_spark_version" "latest_lts" {
-  long_term_support = true
 }
 
 # ---------------------------------------------------------------------------
