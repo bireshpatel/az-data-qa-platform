@@ -63,21 +63,45 @@ resource "azurerm_subnet" "private" {
   }
 }
 
+# NSG required for VNet-injected Databricks (both subnets must have an NSG association)
+resource "azurerm_network_security_group" "databricks" {
+  name                = "nsg-databricks-${var.project_name}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_subnet_network_security_group_association" "public" {
+  subnet_id                 = azurerm_subnet.public.id
+  network_security_group_id = azurerm_network_security_group.databricks.id
+}
+
+resource "azurerm_subnet_network_security_group_association" "private" {
+  subnet_id                 = azurerm_subnet.private.id
+  network_security_group_id = azurerm_network_security_group.databricks.id
+}
+
 # ---------------------------------------------------------------------------
 # 2. Databricks Workspace (Premium, no public IP)
 # ---------------------------------------------------------------------------
 
 resource "azurerm_databricks_workspace" "ws" {
+  depends_on = [
+    azurerm_subnet_network_security_group_association.public,
+    azurerm_subnet_network_security_group_association.private,
+  ]
+
   name                = "ws-${var.project_name}"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "premium"
 
   custom_parameters {
-    no_public_ip        = true
-    virtual_network_id  = azurerm_virtual_network.vnet.id
-    public_subnet_name  = azurerm_subnet.public.name
-    private_subnet_name = azurerm_subnet.private.name
+    no_public_ip                                    = true
+    virtual_network_id                              = azurerm_virtual_network.vnet.id
+    public_subnet_name                              = azurerm_subnet.public.name
+    private_subnet_name                             = azurerm_subnet.private.name
+    public_subnet_network_security_group_association_id  = azurerm_subnet_network_security_group_association.public.id
+    private_subnet_network_security_group_association_id = azurerm_subnet_network_security_group_association.private.id
   }
 }
 
