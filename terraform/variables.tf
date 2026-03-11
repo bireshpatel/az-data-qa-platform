@@ -32,6 +32,12 @@ variable "databricks_spark_version" {
   default     = "14.3.x-scala2.12"
 }
 
+variable "databricks_workspace_principal_id" {
+  description = "Optional: workspace managed identity principal ID for Key Vault and ADLS access. If the provider does not expose storage_account_identity/managed_disk_identity, set this (e.g. from Azure CLI: az databricks workspace show -g <rg> -n <ws> --query 'storageAccountIdentity.principalId' -o tsv)"
+  type        = string
+  default     = ""
+}
+
 # ---------------------------------------------------------------------------
 # Backend / state (override via -var or TF_VAR_)
 # ---------------------------------------------------------------------------

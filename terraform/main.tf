@@ -112,13 +112,19 @@ data "azurerm_databricks_workspace" "ws_lookup" {
 }
 
 # Prefer storage_account_identity for Key Vault/ADLS; fall back to managed_disk_identity (VNet-injected can expose either).
-# Data source is used because the resource can return empty identity on first create; resource values used as fallback.
+# When the provider returns empty lists (known with some workspace configs), use var.databricks_workspace_principal_id
+# or leave null so Key Vault policy and storage role are skipped until you set the variable (e.g. from Azure CLI).
 locals {
-  workspace_principal_id = coalesce(
-    try(data.azurerm_databricks_workspace.ws_lookup.storage_account_identity[0].principal_id, null),
-    try(data.azurerm_databricks_workspace.ws_lookup.managed_disk_identity[0].principal_id, null),
-    try(azurerm_databricks_workspace.ws.storage_account_identity[0].principal_id, null),
-    try(azurerm_databricks_workspace.ws.managed_disk_identity[0].principal_id, null)
+  _ds_storage = data.azurerm_databricks_workspace.ws_lookup.storage_account_identity
+  _ds_disk   = data.azurerm_databricks_workspace.ws_lookup.managed_disk_identity
+  _res_storage = azurerm_databricks_workspace.ws.storage_account_identity
+  _res_disk   = azurerm_databricks_workspace.ws.managed_disk_identity
+  workspace_principal_id = (
+    length(local._ds_storage) > 0   ? local._ds_storage[0].principal_id :
+    length(local._ds_disk) > 0      ? local._ds_disk[0].principal_id :
+    length(local._res_storage) > 0  ? local._res_storage[0].principal_id :
+    length(local._res_disk) > 0     ? local._res_disk[0].principal_id :
+    var.databricks_workspace_principal_id != "" ? var.databricks_workspace_principal_id : null
   )
 }
 
@@ -137,11 +143,14 @@ resource "azurerm_key_vault" "kv" {
   soft_delete_retention_days   = 7
   purge_protection_enabled    = false
 
-  # Allow Databricks workspace managed identity to read secrets
-  access_policy {
-    tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = local.workspace_principal_id
-    secret_permissions = ["Get", "List"]
+  # Allow Databricks workspace managed identity to read secrets (only when principal_id is available)
+  dynamic "access_policy" {
+    for_each = local.workspace_principal_id != null ? [1] : []
+    content {
+      tenant_id = data.azurerm_client_config.current.tenant_id
+      object_id = local.workspace_principal_id
+      secret_permissions = ["Get", "List"]
+    }
   }
 
   access_policy {
@@ -176,8 +185,9 @@ resource "azurerm_storage_data_lake_gen2_filesystem" "data_docs" {
   storage_account_id = azurerm_storage_account.adls.id
 }
 
-# Grant Databricks workspace identity Storage Blob Data Contributor on the storage account (for reading/writing data and Data Docs)
+# Grant Databricks workspace identity Storage Blob Data Contributor (only when principal_id is available)
 resource "azurerm_role_assignment" "databricks_storage" {
+  count                = local.workspace_principal_id != null ? 1 : 0
   scope                = azurerm_storage_account.adls.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = local.workspace_principal_id
