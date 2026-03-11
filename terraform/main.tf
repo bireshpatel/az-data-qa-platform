@@ -214,7 +214,7 @@ resource "databricks_secret_scope" "kv" {
 
 # ---------------------------------------------------------------------------
 # 6. Databricks cluster (minimal 1-worker Spot, 20-min autotermination)
-# Single-node (NO_ISOLATION) is often disabled by workspace policy; use 1 worker instead.
+# data_security_mode required when workspace disallows NO_ISOLATION / shared clusters.
 # ---------------------------------------------------------------------------
 
 resource "databricks_cluster" "qa_cluster" {
@@ -222,6 +222,7 @@ resource "databricks_cluster" "qa_cluster" {
   spark_version           = var.databricks_spark_version
   node_type_id            = "Standard_DS3_v2"
   autotermination_minutes = 20
+  data_security_mode      = "USER_ISOLATION" # Satisfies "no NO_ISOLATION" workspace policy
 
   azure_attributes {
     availability    = "SPOT_WITH_FALLBACK_AZURE"
